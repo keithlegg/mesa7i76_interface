@@ -34,8 +34,10 @@ Since you are new to AVRs I just thought you should be aware of these special AT
 
 - CHANGE FUSE BITS 
 
-# DEFAULT FUSES  - WITHOUT 103 COMPATIBILITY MODE OR JTAG!!!! 
+default fuses without 103 compatiblity  
 sudo avrdude -V -c usbtiny -p atmega128  -U lfuse:w:0xc1:m -U hfuse:w:0xd9:m -U efuse:w:0xff:m 
 
-# external xtal  - THIS SEEMS TO WORK!!
+external xtal
 sudo avrdude -V -c usbtiny -p atmega128  -U lfuse:w:0xff:m -U hfuse:w:0xd9:m -U efuse:w:0xff:m 
+
+
