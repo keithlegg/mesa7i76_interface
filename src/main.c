@@ -4,6 +4,7 @@
 #define FOSC 16000000    // Clock Speed
 
 #include <util/delay.h>
+#include "nes_ctrlr.h"
 
 
 // DDRB |= (1 << DDB3);     // set pin 3 of Port B as output
@@ -59,15 +60,15 @@
 
 // speed between stepper pulses in millisecond
 // because this is driving a brushed motor - the time will directly affect the "step" length
-const uint8_t run_del = 100; 
+const uint8_t run_del = 3; 
 
 
 uint8_t xaxis_dir  = 0; 
 uint8_t xaxis_step = 0; 
 uint8_t yaxis_dir  = 0; 
-uint8_t yaxis_step  = 0; 
+uint8_t yaxis_step = 0; 
 uint8_t zaxis_dir  = 0; 
-uint8_t zaxis_step  = 0; 
+uint8_t zaxis_step = 0; 
 
 
 void read_state(void)
@@ -81,25 +82,74 @@ void read_state(void)
 
     */
 
-    // xaxis_step =  (PINB & (1 << PINB2)) >> PINB2;
+    //-------
+    //READ X AXIS 
 
-    uint8_t bit1 = (PINB >> 1) & 1; //b1 on 
-    uint8_t bit2 = (PINB >> 2) & 1; //b2 off 
-
+    // read step X 
+    uint8_t bit1 = (PINB >> 1) & 1;   
+    uint8_t bit2 = (PINB >> 2) & 1; 
+    // read two differential pins   
     if (bit1==0x00 && bit2==0x01)
     {
-        PORTA = 0xaa;
+        xaxis_step = 0x01;
     } else{
-        PORTA = 0x00;        
+        xaxis_step = 0x00;        
     } 
 
+    //read X direction 
+    uint8_t bit3 = (PINB >> 3) & 1;    
+    if (bit3==0x01)
+    {
+        xaxis_dir = 0x00; 
+    } else{
+        xaxis_dir = 0x01;         
+    } 
 
-    // xaxis_dir  = PINB & (1 << PINB4); 
-    // yaxis_dir  = PINB & (1 << PINB4); 
-    // yaxis_dir  = PINB & (1 << PINB4); 
-    // zaxis_dir  = PINB & (1 << PINB4); 
-    // zaxis_dir  = PINB & (1 << PINB4); 
+    //-------
+    // READ Y AXIS 
+    
+    // read step Y 
+    uint8_t bit4 = (PINB >> 4) & 1;   
+    uint8_t bit5 = (PINB >> 5) & 1; 
+    // read two differential pins   
+    if (bit4==0x00 && bit5==0x01)
+    {
+        yaxis_step = 0x01;
+    } else{
+        yaxis_step = 0x00;    
+    } 
 
+    //read Y direction 
+    uint8_t bit6 = (PINB >> 6) & 1;    
+    if (bit6==0x01)
+    {
+        yaxis_dir = 0x00; 
+    } else{
+        yaxis_dir = 0x01;         
+    } 
+
+    //-------
+    // READ Z AXIS 
+
+    // read step Z 
+    uint8_t bit7 = (PIND >> 0) & 1;   
+    uint8_t bit8 = (PIND >> 1) & 1; 
+    // read two differential pins   
+    if (bit7==0x00 && bit8==0x01)
+    {
+        zaxis_step = 0x01;
+    } else{
+        zaxis_step = 0x00;    
+    } 
+
+    //read Z direction 
+    uint8_t bit9 = (PIND >> 2) & 1;    
+    if (bit9==0x01)
+    {
+        zaxis_dir = 0x00; 
+    } else{
+        zaxis_dir = 0x01;         
+    } 
 
 }
 
@@ -232,7 +282,40 @@ void step_z_axis(void)
  
 
 
+void test(void){
 
+    set_x_dir(0);
+    set_y_dir(0);
+    set_z_dir(0);        
+    _delay_ms(100);
+    
+    for (uint8_t xx=0;xx<10;xx++){
+        step_x_axis();
+    }
+    for (uint8_t xx=0;xx<10;xx++){
+        step_y_axis();
+    }
+    for (uint8_t xx=0;xx<10;xx++){
+        step_z_axis();
+    }    
+  
+
+    set_x_dir(1);
+    set_y_dir(1);
+    set_z_dir(1);
+    _delay_ms(100);
+
+    for (uint8_t xx=0;xx<10;xx++){
+        step_x_axis();
+    }
+    for (uint8_t xx=0;xx<10;xx++){
+        step_y_axis();
+    }
+    for (uint8_t xx=0;xx<10;xx++){
+        step_z_axis();
+    }  
+
+}
  
 
 
@@ -248,6 +331,8 @@ int main (void)
     //PORTB = 0xff; // PORTB pull all pins up  
     //PORTD = 0xff; // PORTD pull all pins up 
 
+    NES_CTRLR_Init();
+
     while (1)
     {
         //xaxis_step = (PINB & 0x03) == 0x01;
@@ -259,9 +344,34 @@ int main (void)
         //uint8_t pinValue = PINB & (1 << PINB4);
         //PORTA = pinValue;
 
-        read_state();
+        //read_state();
+        uint8_t foo = 0x00;
 
+        // 0xFF - nothing pressed 
+        // 0xF7 - up 
+        // 0xFD - left 
+        // 0xFB - down 
+        // 0xF7 - up 
+        // 0xF6 - right/up
+        // 0xFA - right/down
+        // 0xF5 - left/up      
+        // 0xF9 - left/down  
+        // 0xFE - right 
+        // mask of high bit for buttons other than direction 
+        // 0xDF - select 
+        // 0xEF - start
+        // 0xBF - B button 
+        // 0x7F - A button 
+        // 0x3X - both A,B buttons 
 
+        uint8_t nes_byte = nes_controller_read();
+        //if(nes_byte == 0xFE ) { foo=0x01; } //right
+        //if(nes_byte == 0xFD ) { foo=0x02; } //left
+        //if(nes_byte == 0xFB ) { foo=0x03; } //down
+        //if(nes_byte == 0xF7 ) { foo=0x04; } //up
+        //if(nes_byte == 0x7F ) { foo=0x05; } //button a
+
+        PORTA = nes_byte;
     }
 
     return 0;

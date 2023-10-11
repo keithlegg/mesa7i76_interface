@@ -4,7 +4,7 @@ PROJECT=interface
 
 ###########################
 
-SOURCES=src/interface.c
+SOURCES=src/main.c src/nes_ctrlr.c  
 
 
 ###########################
