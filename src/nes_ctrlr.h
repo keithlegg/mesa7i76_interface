@@ -1,6 +1,7 @@
 #ifndef _nesCtrlr_
 #define _nesCtrlr_
 
+#include <avr/delay.h>
 #include <avr/io.h>
 
 #define nes_gpio_ddr DDRD             

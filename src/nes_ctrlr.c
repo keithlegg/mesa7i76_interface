@@ -1,4 +1,3 @@
-
 #include "nes_ctrlr.h"
 
 /*
@@ -45,11 +44,13 @@ uint8_t nes_controller_read(void)
 
   for (i=0; i<7; i++) {
      nes_gpio_port |= nes_clock_pin;
-     //_delay_us(latchtime); 
+     _delay_us(latchtime); 
+     
      controller_data = controller_data << 1;
      controller_data = controller_data + !!(nes_input_port & nes_data_pin); 
      nes_gpio_port &= ~nes_clock_pin;
-     //_delay_us(latchtime); 
+     _delay_us(latchtime); 
+
   }
   
   nes_gpio_port |= nes_latch_pin;  

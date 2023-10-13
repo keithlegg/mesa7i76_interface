@@ -6,6 +6,14 @@
 #include <util/delay.h>
 #include "nes_ctrlr.h"
 
+#define BitSet(Port,Bit) (Port|=(1<<Bit))
+#define BitClear(Port,Bit) (Port&=~(1<<Bit))
+#define BitToggle(Port,Bit) (Port^=(1<<Bit))
+
+#define SetBits(Port,BitMask) (Port|=BitMask)
+#define ClearBits(Port,BitMask) (Port&=~BitMask)
+#define ToggleBits(Port,BitMask) (Port^=BitMask)
+
 
 // DDRB |= (1 << DDB3);     // set pin 3 of Port B as output
 // PORTB |= (1 << PB3);     // set pin 3 of Port B high
@@ -60,7 +68,7 @@
 
 // speed between stepper pulses in millisecond
 // because this is driving a brushed motor - the time will directly affect the "step" length
-const uint8_t run_del = 3; 
+const uint8_t run_del = 100; 
 
 
 uint8_t xaxis_dir  = 0; 
@@ -71,113 +79,44 @@ uint8_t zaxis_dir  = 0;
 uint8_t zaxis_step = 0; 
 
 
-void read_state(void)
-{
-    /*
-       example to read the state of PORTB and set PORTA as output  
-
-      PIN MAPPING FOR CABLE TO 7i76  
-      b0 step0-| b1 step0+| b2 dir0-| b3 dir0+ | b4 step1-| b5 step1+| b6 dir1-| b7 dir1+ 
-      d0 step2-| d1 step2+| d2 dir2-| d2 dir2+ |          |          |         |     
-
-    */
-
-    //-------
-    //READ X AXIS 
-
-    // read step X 
-    uint8_t bit1 = (PINB >> 1) & 1;   
-    uint8_t bit2 = (PINB >> 2) & 1; 
-    // read two differential pins   
-    if (bit1==0x00 && bit2==0x01)
-    {
-        xaxis_step = 0x01;
-    } else{
-        xaxis_step = 0x00;        
-    } 
-
-    //read X direction 
-    uint8_t bit3 = (PINB >> 3) & 1;    
-    if (bit3==0x01)
-    {
-        xaxis_dir = 0x00; 
-    } else{
-        xaxis_dir = 0x01;         
-    } 
-
-    //-------
-    // READ Y AXIS 
-    
-    // read step Y 
-    uint8_t bit4 = (PINB >> 4) & 1;   
-    uint8_t bit5 = (PINB >> 5) & 1; 
-    // read two differential pins   
-    if (bit4==0x00 && bit5==0x01)
-    {
-        yaxis_step = 0x01;
-    } else{
-        yaxis_step = 0x00;    
-    } 
-
-    //read Y direction 
-    uint8_t bit6 = (PINB >> 6) & 1;    
-    if (bit6==0x01)
-    {
-        yaxis_dir = 0x00; 
-    } else{
-        yaxis_dir = 0x01;         
-    } 
-
-    //-------
-    // READ Z AXIS 
-
-    // read step Z 
-    uint8_t bit7 = (PIND >> 0) & 1;   
-    uint8_t bit8 = (PIND >> 1) & 1; 
-    // read two differential pins   
-    if (bit7==0x00 && bit8==0x01)
-    {
-        zaxis_step = 0x01;
-    } else{
-        zaxis_step = 0x00;    
-    } 
-
-    //read Z direction 
-    uint8_t bit9 = (PIND >> 2) & 1;    
-    if (bit9==0x01)
-    {
-        zaxis_dir = 0x00; 
-    } else{
-        zaxis_dir = 0x01;         
-    } 
-
-}
+//use these to AND all outputs together on each cycle
+uint8_t ouput_porta = 0; 
+uint8_t ouput_portc = 0;
 
 
+//----------------------------------------// 
+
+//void knightrider(uint8_t *outa)
 
 void knightrider(void)
 {
     uint8_t i = 0; 
-    uint8_t dly = 10; 
+    
 
     for(uint8_t i = 0; i<7; i++)  
     {           
-        PORTA |= (1<<i);     
-        _delay_ms(dly);  
-        PORTA &= ~(1<<i);   
-        _delay_ms(dly);  
-    }  
+        //*outa =i ;//|= (1<<i);
+        PORTA |= (1<<i);
+        _delay_ms(run_del); 
+
+        //*outa &= ~(1<<i);
+        PORTA &= ~(1<<i);        
+        _delay_ms(run_del);  
+    } 
+
+     
     for(i=7; i>0; i--)
     {
         PORTA |= (1<<i);
-        _delay_ms(dly);
+        _delay_ms(run_del);
         PORTA &= ~(1<<i);
-        _delay_ms(dly);
+        _delay_ms(run_del);
     } 
+   
 
 }
 
-
+//----------------------------------------// 
 void set_x_dir(uint8_t xdir){
 
     // PORTA -- 0 XEN | 1 XDIRLO | 2 XDIRHI | 3 YEN | 4 YDIRLO | 5 YDIRHI    
@@ -186,25 +125,26 @@ void set_x_dir(uint8_t xdir){
     if (xdir==0x00)
     {
         // set hi-low bridge controls (never both the same!) 
-        PORTA |=  (1 << PA1); //pin 1 high        
-        PORTA &= ~(1 << PA2); //pin 2 low 
+        ouput_porta |=  (1 << PA1); //pin 1 high        
+        ouput_porta &= ~(1 << PA2); //pin 2 low 
 
         // // pulse the enable line 
         // _delay_ms(run_del);
-        // PORTA |= (1 << PA0);    
+        // ouput_porta |= (1 << PA0);    
         // _delay_ms(run_del);
-        // PORTA &= ~(1 << PA0);    
+        // ouput_porta &= ~(1 << PA0);    
     }
     
     if (xdir==0x01)
     {
         // set hi-low bridge controls (never both the same!) 
-        PORTA |=  (1 << PA2); //pin 1 low        
-        PORTA &= ~(1 << PA1); //pin 2 high 
+        ouput_porta |=  (1 << PA2); //pin 1 low        
+        ouput_porta &= ~(1 << PA1); //pin 2 high 
     }
 
 }
 
+//----------------------------------------// 
 void set_y_dir(uint8_t ydir){
 
     // PORTA -- 0 XEN | 1 XDIRLO | 2 XDIRHI | 3 YEN | 4 YDIRLO | 5 YDIRHI    
@@ -213,19 +153,20 @@ void set_y_dir(uint8_t ydir){
     if (ydir==0x00)
     {
         // set hi-low bridge controls (never both the same!) 
-        PORTA |=  (1 << PA4); //pin 1 high        
-        PORTA &= ~(1 << PA5); //pin 2 low 
+        ouput_porta |=  (1 << PA4); //pin 1 high        
+        ouput_porta &= ~(1 << PA5); //pin 2 low 
     }
     
     if (ydir==0x01)
     {
         // set hi-low bridge controls (never both the same!) 
-        PORTA |=  (1 << PA5); //pin 1 low        
-        PORTA &= ~(1 << PA4); //pin 2 high 
+        ouput_porta |=  (1 << PA5); //pin 1 low        
+        ouput_porta &= ~(1 << PA4); //pin 2 high 
     }
 
 }
 
+//----------------------------------------// 
 void set_z_dir(uint8_t zdir){
 
     // PORTA -- 0 XEN | 1 XDIRLO | 2 XDIRHI | 3 YEN | 4 YDIRLO | 5 YDIRHI    
@@ -234,90 +175,278 @@ void set_z_dir(uint8_t zdir){
     if (zdir==0)
     {
         // set hi-low bridge controls (never both the same!) 
-        PORTC |=  (1 << PA1); //pin 1 high        
-        PORTC &= ~(1 << PA2); //pin 2 low 
+        ouput_portc |=  (1 << PA1); //pin 1 high        
+        ouput_portc &= ~(1 << PA2); //pin 2 low 
 
     }
     
     if (zdir==1)
     {
         // set hi-low bridge controls (never both the same!) 
-        PORTC |=  (1 << PA2); //pin 1 low        
-        PORTC &= ~(1 << PA1); //pin 2 high 
+        ouput_portc |=  (1 << PA2); //pin 1 low        
+        ouput_portc &= ~(1 << PA1); //pin 2 high 
     
     }
 
 }
 
 
-
+//----------------------------------------// 
 void step_x_axis(void)
 {
     // STEPX (pulse the enable line )
-    _delay_ms(run_del);
-    PORTA |= (1 << PA0);      
-    _delay_ms(run_del);
-    PORTA &= ~(1 << PA0); 
+    //ouput_porta |= (1 << PA0);   
+    BitSet(ouput_porta,0);
+    //_delay_ms(run_del);
+
+    //ouput_porta &= ~(1 << PA0); 
+    //BitClear(PORTA,0);
+    //_delay_ms(run_del);
+
 }
 
-
+//----------------------------------------// 
 void step_y_axis(void)
 {
     // STEPY (pulse the enable line )
-    _delay_ms(run_del);
-    PORTA |= (1 << PA3);      
-    _delay_ms(run_del);
-    PORTA &= ~(1 << PA3); 
+    //_delay_ms(run_del);
+    ouput_porta |= (1 << PA3);      
+    //_delay_ms(run_del);
+    //PORTA &= ~(1 << PA3); 
 }
 
-
+//----------------------------------------// 
 void step_z_axis(void)
 {
     // STEPZ (pulse the enable line )
-    _delay_ms(run_del);
-    PORTC |= (1 << PA0);      
-    _delay_ms(run_del);
-    PORTC &= ~(1 << PA0);
+    //_delay_ms(run_del);
+    ouput_portc |= (1 << PA0);      
+    //_delay_ms(run_del);
+    //PORTC &= ~(1 << PA0);
 }
  
 
+//----------------------------------------// 
+void update(void){
+    //set the final output per cycle  
+    PORTA = ouput_porta;
+    PORTC = ouput_portc;
+    _delay_ms(run_del);
 
+    //clear the step pulses in sync
+    BitClear(PORTA,0);
+    PORTA &= ~(1 << PA3); 
+    PORTC &= ~(1 << PA0);
+    _delay_ms(run_del);
+
+}
+
+//----------------------------------------//
 void test(void){
 
     set_x_dir(0);
     set_y_dir(0);
     set_z_dir(0);        
-    _delay_ms(100);
-    
+    _delay_ms(run_del);
+
     for (uint8_t xx=0;xx<10;xx++){
-        step_x_axis();
-    }
-    for (uint8_t xx=0;xx<10;xx++){
-        step_y_axis();
-    }
-    for (uint8_t xx=0;xx<10;xx++){
-        step_z_axis();
+       step_x_axis();
+       step_y_axis();
+       step_z_axis();
+       update();
     }    
   
-
     set_x_dir(1);
     set_y_dir(1);
     set_z_dir(1);
-    _delay_ms(100);
+    _delay_ms(run_del);
 
     for (uint8_t xx=0;xx<10;xx++){
         step_x_axis();
-    }
-    for (uint8_t xx=0;xx<10;xx++){
         step_y_axis();
-    }
-    for (uint8_t xx=0;xx<10;xx++){
         step_z_axis();
+        update();
     }  
 
 }
  
 
+//----------------------------------------//
+void nes_play(void)
+{
+
+    // 0xFF - nothing pressed 
+    // 0xF7 - up 
+    // 0xFD - left 
+    // 0xFB - down 
+    // 0xF7 - up 
+    // 0xF6 - right/up
+    // 0xFA - right/down
+    // 0xF5 - left/up      
+    // 0xF9 - left/down  
+    // 0xFE - right 
+    // mask of high bit for buttons other than direction 
+    // 0xDF - select 
+    // 0xEF - start
+    // 0xBF - B button 
+    // 0x7F - A button 
+    // 0x3X - both A,B buttons 
+
+
+
+    uint8_t nes_byte = nes_controller_read();
+    
+    //down
+    if(nes_byte == 0xFB ){   
+        set_x_dir(0);
+        step_x_axis();
+        update();
+    } 
+    //up
+    if(nes_byte == 0xF7 ){   
+        set_x_dir(1);
+        step_x_axis();
+        update();        
+    } 
+
+    //right
+    if(nes_byte == 0xFE ){   
+        set_y_dir(0);
+        step_y_axis();
+        update();
+    } 
+    //left
+    if(nes_byte == 0xFD ){   
+        set_y_dir(1);
+        step_y_axis();
+        update();        
+    } 
+   
+
+    //B button
+    if(nes_byte == 0xBF ){   
+        set_z_dir(0);
+        step_z_axis();
+        update();
+    } 
+    //A button
+    if(nes_byte == 0x7F ){   
+        set_z_dir(1);
+        step_z_axis();
+        update();        
+    } 
+
+
+    //idle - no stepping 
+    if(nes_byte == 0xFF ){   
+        ouput_porta = 0x00;
+        ouput_portc = 0x00;
+
+    }
+
+    
+    //set_z_dir(0);        
+
+}
+
+
+//----------------------------------------// 
+void glu_logik(void)
+{
+    /*
+      example to read the state of PORTB and set PORTA as output  
+
+      # PIN MAPPING FOR CABLE TO 7i76  
+
+      0 pb0 step0-
+      1 pb1 step0+ 
+      2 pb2 dir0- 
+      3 pb3 dir0+  //(ignore)  
+      4 pb4 step1- 
+      5 pb5 step1+ 
+      6 pb6 dir1- 
+      7 pb7 dir1+ //(ignore) 
+      
+      0 pd0 step2- 
+      1 pd1 step2+ 
+      2 pd2 dir2- 
+      3 pd2 dir2+     
+
+    */
+
+    // this is difficult - it cant pulse the steps as fast as it can read
+
+    uint8_t bit0 = (PINB >> 0) & 1; //x step -   
+    uint8_t bit1 = (PINB >> 1) & 1; //x step + 
+    uint8_t bit2 = (PINB >> 2) & 1; //x dir  -  
+    //      bit3 = (PINB >> 3) & 1; //ignore differental dir+  
+    uint8_t bit4 = (PINB >> 4) & 1; //y step -   
+    uint8_t bit5 = (PINB >> 5) & 1; //y step +  
+    uint8_t bit6 = (PINB >> 6) & 1; //y dir  -   
+
+    uint8_t bit7 = (PIND >> 0) & 1; //z step -  
+    uint8_t bit8 = (PIND >> 1) & 1; //z step +
+    uint8_t bit9 = (PIND >> 2) & 1; //z dir  -
+
+    // Initialise global variables in case of reset
+    ouput_porta = 0;
+    ouput_portc = 0;
+
+    //-------
+    // dir -X 
+    if (bit2==0x01)
+    {
+        set_x_dir(0);
+    } else{
+        set_x_dir(1);
+    } 
+
+    //-------
+    // dir -Y  
+    if (bit6==0x01)
+    {
+        set_y_dir(0);
+    } else{
+        set_y_dir(1);
+    } 
+    
+    /*
+    //-------
+    // dir -Z 
+    if (bit9==0x01)
+    {
+        set_z_dir(0);
+    } else{
+        set_z_dir(1);
+    }  
+    */
+
+    //-------------------//
+
+    if (bit0==0x00 && bit1==0x01)
+    {
+        step_x_axis();
+    } 
+    if (bit4==0x00 && bit5==0x01)
+    {
+        step_y_axis();
+    } 
+    if (bit7==0x00 && bit8==0x01)
+    {
+        step_z_axis();
+    } 
+
+    //attempt to stop the thing when no signal
+    if (bit0== 0 && bit1==0 || bit4==0 && bit5==0 || bit4==0 && bit5==0 )
+    {
+        ouput_porta = 0x00;
+        ouput_portc = 0x00;
+    }
+
+
+}
+
+//----------------------------------------// 
 
 int main (void)
 {
@@ -326,7 +455,7 @@ int main (void)
     DDRC = 0xff; // PORTC all output
 
     DDRB = 0x00;  // PORTB all input
-    //DDRD = 0x00;  // PORTB all input 
+    DDRD = 0x00;  // PORTB all input 
 
     //PORTB = 0xff; // PORTB pull all pins up  
     //PORTD = 0xff; // PORTD pull all pins up 
@@ -344,38 +473,25 @@ int main (void)
         //uint8_t pinValue = PINB & (1 << PINB4);
         //PORTA = pinValue;
 
-        //read_state();
-        uint8_t foo = 0x00;
 
-        // 0xFF - nothing pressed 
-        // 0xF7 - up 
-        // 0xFD - left 
-        // 0xFB - down 
-        // 0xF7 - up 
-        // 0xF6 - right/up
-        // 0xFA - right/down
-        // 0xF5 - left/up      
-        // 0xF9 - left/down  
-        // 0xFE - right 
-        // mask of high bit for buttons other than direction 
-        // 0xDF - select 
-        // 0xEF - start
-        // 0xBF - B button 
-        // 0x7F - A button 
-        // 0x3X - both A,B buttons 
+        //read incoming - set step and dir bits 
+        //glu_logik();
+        //update();
 
-        uint8_t nes_byte = nes_controller_read();
-        //if(nes_byte == 0xFE ) { foo=0x01; } //right
-        //if(nes_byte == 0xFD ) { foo=0x02; } //left
-        //if(nes_byte == 0xFB ) { foo=0x03; } //down
-        //if(nes_byte == 0xF7 ) { foo=0x04; } //up
-        //if(nes_byte == 0x7F ) { foo=0x05; } //button a
-
-        PORTA = nes_byte;
+        //test();
+        nes_play();
+    
+     
+             
     }
 
     return 0;
 } 
+
+
+
+
+
 
 
 
